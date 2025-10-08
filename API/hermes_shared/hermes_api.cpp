@@ -1192,3 +1192,132 @@ JSR_API jsr_initialize_native_module(
   return CHECKED_ENV_RUNTIME(env)->initializeNativeModule(
       register_module, api_version, exports);
 }
+
+//=============================================================================
+// CDP vtable - Stubbed implementations
+//=============================================================================
+
+static hermes_status NAPI_CDECL stub_create_cdp_debugger(hermes_runtime runtime, hermes_cdp_debugger *result) {
+  (void)runtime;
+
+  if (result) {
+    *result = (hermes_cdp_debugger)0x1;
+  }
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_create_cdp_agent(
+    hermes_cdp_debugger cdp_debugger,
+    int32_t execution_context_id,
+    hermes_enqueue_runtime_task_functor enqueue_runtime_task_callback,
+    hermes_enqueue_frontend_message_functor enqueue_frontend_message_callback,
+    hermes_cdp_state cdp_state,
+    hermes_cdp_agent *result) {
+  // TODO: Implement
+  (void)cdp_debugger;
+  (void)execution_context_id;
+  (void)enqueue_runtime_task_callback;
+  (void)enqueue_frontend_message_callback;
+  (void)cdp_state;
+  if (result) {
+    *result = (hermes_cdp_agent)0x2;
+  }
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_get_cdp_state(hermes_cdp_agent cdp_agent, hermes_cdp_state *result) {
+  // TODO: Implement
+  (void)cdp_agent;
+  if (result) {
+    *result = nullptr;
+  }
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_capture_stack_trace(hermes_runtime runtime, hermes_stack_trace *result) {
+  // TODO: Implement
+  (void)runtime;
+  if (result) *result = nullptr;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_release_cdp_debugger(hermes_cdp_debugger cdp_debugger) {
+  // TODO: Implement
+  (void)cdp_debugger;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_release_cdp_agent(hermes_cdp_agent cdp_agent) {
+  // TODO: Implement
+  (void)cdp_agent;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_release_cdp_state(hermes_cdp_state cdp_state) {
+  // TODO: Implement
+  (void)cdp_state;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_release_stack_trace(hermes_stack_trace stack_trace) {
+  // TODO: Implement
+  (void)stack_trace;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_cdp_agent_handle_command(hermes_cdp_agent cdp_agent, const char *json_utf8, size_t json_size) {
+  // TODO: Implement - For now, just acknowledge receipt of CDP commands
+  (void)cdp_agent;
+  (void)json_utf8;
+  (void)json_size;
+  // OutputDebugStringA("[CDP] Received command - stubbed implementation\n");
+  
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_cdp_agent_enable_runtime_domain(hermes_cdp_agent cdp_agent) {
+  // TODO: Implement
+  (void)cdp_agent;
+  return hermes_status_ok;
+}
+
+static hermes_status NAPI_CDECL stub_cdp_agent_enable_debugger_domain(hermes_cdp_agent cdp_agent) {
+  // TODO: Implement
+  (void)cdp_agent;
+  return hermes_status_ok;
+}
+
+// The vtable with stubbed functions  
+static struct {
+  void *reserved[3];
+  hermes_create_cdp_debugger create_cdp_debugger;
+  hermes_create_cdp_agent create_cdp_agent;
+  hermes_get_cdp_state get_cdp_state;
+  hermes_capture_stack_trace capture_stack_trace;
+  hermes_release_cdp_debugger release_cdp_debugger;
+  hermes_release_cdp_agent release_cdp_agent;
+  hermes_release_cdp_state release_cdp_state;
+  hermes_release_stack_trace release_stack_trace;
+  hermes_cdp_agent_handle_command cdp_agent_handle_command;
+  hermes_cdp_agent_enable_runtime_domain cdp_agent_enable_runtime_domain;
+  hermes_cdp_agent_enable_debugger_domain cdp_agent_enable_debugger_domain;
+} cdp_api_impl = {
+  {nullptr, nullptr, nullptr},  // reserved[3]
+  stub_create_cdp_debugger,
+  stub_create_cdp_agent,
+  stub_get_cdp_state,
+  stub_capture_stack_trace,
+  stub_release_cdp_debugger,
+  stub_release_cdp_agent,
+  stub_release_cdp_state,
+  stub_release_stack_trace,
+  stub_cdp_agent_handle_command,
+  stub_cdp_agent_enable_runtime_domain,
+  stub_cdp_agent_enable_debugger_domain,
+};
+
+JSR_API hermes_get_cdp_vtable(hermes_api_vtable *vtable) {
+  CHECK_ARG(vtable);
+  *vtable = reinterpret_cast<hermes_api_vtable>(&cdp_api_impl);
+  return napi_ok;
+}
