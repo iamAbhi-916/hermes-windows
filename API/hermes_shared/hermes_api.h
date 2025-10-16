@@ -82,7 +82,6 @@ JSR_API hermes_local_connection_send_message(
 
 JSR_API hermes_local_connection_disconnect(
     hermes_local_connection local_connection);
-// ===> Hermes Runtime API start
 
 #define HERMES_CDECL __cdecl
 
