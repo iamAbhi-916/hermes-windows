@@ -708,10 +708,22 @@ class RuntimeWrapper {
     return napi_ok;
   }
 
-  // // Get the underlying HermesRuntime pointer for CDP debugger
-  // facebook::hermes::HermesRuntime* getHermesRuntime() noexcept {
-  //   return hermesJsiRuntime_.get();
-  // }
+  // Get the underlying HermesRuntime pointer for CDP debugger
+  facebook::hermes::HermesRuntime* getHermesRuntime() noexcept {
+    OutputDebugStringA("[RuntimeWrapper::getHermesRuntime] Called\n");
+    
+    if (!hermesJsiRuntime_) {
+      OutputDebugStringA("[RuntimeWrapper::getHermesRuntime] ERROR: hermesJsiRuntime_ is null!\n");
+      return nullptr;
+    }
+    
+    auto* ptr = hermesJsiRuntime_.get();
+    char logBuffer[256];
+    sprintf_s(logBuffer, "[RuntimeWrapper::getHermesRuntime] hermesJsiRuntime_.get() = %p\n", ptr);
+    OutputDebugStringA(logBuffer);
+    
+    return ptr;
+  }
 
   napi_status drainMicrotasks(int32_t maxCountHint, bool *result) noexcept {
     CHECK_ARG(result);
@@ -992,13 +1004,27 @@ JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env *env) {
   return CHECKED_RUNTIME(runtime)->getNodeApi(env);
 }
 
-// JSR_API jsr_runtime_get_hermes_runtime(jsr_runtime runtime, hermes_runtime *hermes_rt) {
-//   CHECK_ARG(runtime);
-//   CHECK_ARG(hermes_rt);
-//   auto* wrapper = reinterpret_cast<facebook::hermes::RuntimeWrapper*>(runtime);
-//   *hermes_rt = reinterpret_cast<hermes_runtime>(wrapper->getHermesRuntime());
-//   return napi_ok;
-// }
+JSR_API jsr_runtime_get_hermes_runtime(jsr_runtime runtime, hermes_runtime *hermes_rt) {
+  OutputDebugStringA("[hermes_api.cpp - BUILD_TIME: " __DATE__ " " __TIME__ "] === jsr_runtime_get_hermes_runtime START ===\n");
+  CHECK_ARG(runtime);
+  CHECK_ARG(hermes_rt);
+  
+  char logBuffer[256];
+  sprintf_s(logBuffer, "[hermes_api.cpp] runtime=%p\n", runtime);
+  OutputDebugStringA(logBuffer);
+  
+  auto* wrapper = reinterpret_cast<facebook::hermes::RuntimeWrapper*>(runtime);
+  sprintf_s(logBuffer, "[hermes_api.cpp] wrapper=%p, calling getHermesRuntime()\n", wrapper);
+  OutputDebugStringA(logBuffer);
+  
+  auto* hermesRuntimePtr = wrapper->getHermesRuntime();
+  sprintf_s(logBuffer, "[hermes_api.cpp] getHermesRuntime() returned %p\n", hermesRuntimePtr);
+  OutputDebugStringA(logBuffer);
+  
+  *hermes_rt = reinterpret_cast<hermes_runtime>(hermesRuntimePtr);
+  OutputDebugStringA("[hermes_api.cpp] Success!\n");
+  return napi_ok;
+}
 
 JSR_API hermes_dump_crash_data(jsr_runtime runtime, int32_t fd) {
   return CHECKED_RUNTIME(runtime)->dumpCrashData(fd);

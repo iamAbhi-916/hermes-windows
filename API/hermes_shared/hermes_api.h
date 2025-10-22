@@ -85,7 +85,6 @@ JSR_API hermes_local_connection_disconnect(
 
 #define HERMES_CDECL __cdecl
 
-typedef struct hermes_runtime_s *hermes_runtime;
 typedef struct hermes_cdp_debugger_s *hermes_cdp_debugger;
 typedef struct hermes_cdp_agent_s *hermes_cdp_agent;
 typedef struct hermes_cdp_state_s *hermes_cdp_state;

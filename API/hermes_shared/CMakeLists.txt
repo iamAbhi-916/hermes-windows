@@ -19,6 +19,7 @@ target_include_directories(hermesRuntimeApi INTERFACE ${CMAKE_CURRENT_SOURCE_DIR
 
 add_library(libshared SHARED
   hermes_api.cpp
+  cdp_impl.cpp
   MurmurHash.cpp
   MurmurHash.h
   ScriptStore.h

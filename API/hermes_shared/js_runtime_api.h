@@ -23,6 +23,7 @@ typedef struct jsr_runtime_s *jsr_runtime;
 typedef struct jsr_config_s *jsr_config;
 typedef struct jsr_prepared_script_s *jsr_prepared_script;
 typedef struct jsr_napi_env_scope_s *jsr_napi_env_scope;
+typedef struct hermes_runtime_s *hermes_runtime;
 
 typedef void(NAPI_CDECL *jsr_data_delete_cb)(void *data, void *deleter_data);
 
@@ -33,6 +34,7 @@ typedef void(NAPI_CDECL *jsr_data_delete_cb)(void *data, void *deleter_data);
 JSR_API jsr_create_runtime(jsr_config config, jsr_runtime *runtime);
 JSR_API jsr_delete_runtime(jsr_runtime runtime);
 JSR_API jsr_runtime_get_node_api_env(jsr_runtime runtime, napi_env *env);
+JSR_API jsr_runtime_get_hermes_runtime(jsr_runtime runtime, hermes_runtime *hermes_rt);
 
 //=============================================================================
 // jsr_config

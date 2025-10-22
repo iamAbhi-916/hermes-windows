@@ -31,6 +31,7 @@ JSR_FUNC(jsr_get_and_clear_last_unhandled_promise_rejection)
 JSR_FUNC(jsr_has_unhandled_promise_rejection)
 JSR_FUNC(jsr_run_script)
 JSR_FUNC(jsr_runtime_get_node_api_env)
+JSR_FUNC(jsr_runtime_get_hermes_runtime)
 
 // The JS runtime functions needed for JSI.
 JSR_JSI_FUNC(jsr_close_napi_env_scope)

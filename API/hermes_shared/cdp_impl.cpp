@@ -18,7 +18,7 @@
 #include <windows.h>
 
 //=============================================================================
-// CDP Vtable
+// Helper functions to convert between C handles and C++ objects
 //=============================================================================
 
 inline facebook::hermes::cdp::CDPDebugAPI* toCDPDebugAPI(hermes_cdp_debugger handle) {
@@ -52,17 +52,21 @@ inline hermes_cdp_state fromCDPState(facebook::hermes::cdp::State* ptr) {
 extern "C" {
 
 hermes_status HERMES_CDECL impl_create_cdp_debugger(hermes_runtime runtime, hermes_cdp_debugger *result) {
-  char logBuffer[256];
-  sprintf_s(logBuffer, "[CDP] impl_create_cdp_debugger called with runtime=%p, result=%p\n", runtime, result);
-  OutputDebugStringA(logBuffer);
+  OutputDebugStringA("[CDP] Creating debugger...\n");
   
-  if (!result) {
-    OutputDebugStringA("[CDP] Result pointer is null!\n");
-    return hermes_status_ok;
+  if (!result || !runtime) {
+    OutputDebugStringA("[CDP] ERROR: Null pointer\n");
+    return hermes_status_error;
   }
 
-  // For testing stability - just create a dummy pointer
-  *result = reinterpret_cast<hermes_cdp_debugger>(0x12345678);
+  auto* hermesRuntime = toHermesRuntime(runtime);
+  auto cdpDebugAPI = facebook::hermes::cdp::CDPDebugAPI::create(*hermesRuntime);
+  *result = fromCDPDebugAPI(cdpDebugAPI.release());
+  
+  char logBuffer[128];
+  sprintf_s(logBuffer, "[CDP] Debugger created: %p\n", *result);
+  OutputDebugStringA(logBuffer);
+  
   return hermes_status_ok;
 }
 
@@ -73,80 +77,188 @@ hermes_status HERMES_CDECL impl_create_cdp_agent(
     hermes_enqueue_frontend_message_functor enqueue_frontend_message_callback,
     hermes_cdp_state cdp_state,
     hermes_cdp_agent *result) {
-  if (!result) {
-    OutputDebugStringA("[CDP] Result pointer is null\n");
-    return hermes_status_ok;
+  
+  char logBuffer[256];
+  sprintf_s(logBuffer, "[CDP] Creating agent for context %d...\n", execution_context_id);
+  OutputDebugStringA(logBuffer);
+  
+  if (!result || !cdp_debugger) {
+    OutputDebugStringA("[CDP] ERROR: Null pointer\n");
+    return hermes_status_error;
   }
 
-  // For testing stability - just create a dummy pointer
-  *result = reinterpret_cast<hermes_cdp_agent>(0x87654321);
+  auto* debugAPI = toCDPDebugAPI(cdp_debugger);
+  
+  // Wrap C callback as C++ lambda for enqueueing runtime tasks
+  // RuntimeTask is std::function<void(HermesRuntime&)>
+  // The C callback will provide the hermes_runtime when it executes
+  auto enqueueRuntimeTask = [enqueue_runtime_task_callback](facebook::hermes::debugger::RuntimeTask task) {
+    // Store the C++ task on heap
+    auto* taskPtr = new facebook::hermes::debugger::RuntimeTask(std::move(task));
+    
+    // Create hermes_runtime_task_functor that will be called with hermes_runtime
+    hermes_runtime_task_functor taskFunctor;
+    taskFunctor.data = taskPtr;
+    taskFunctor.invoke = [](void* data, hermes_runtime runtime) {
+      // Get the C++ task
+      auto* t = static_cast<facebook::hermes::debugger::RuntimeTask*>(data);
+      // Convert hermes_runtime to HermesRuntime&
+      auto* hermesRuntime = toHermesRuntime(runtime);
+      // Execute the task with the runtime
+      (*t)(*hermesRuntime);
+    };
+    taskFunctor.release = [](void* data) {
+      delete static_cast<facebook::hermes::debugger::RuntimeTask*>(data);
+    };
+    
+    // Call the enqueue callback
+    enqueue_runtime_task_callback.invoke(enqueue_runtime_task_callback.data, taskFunctor);
+  };
+  
+  // Wrap C callback as C++ lambda for sending messages to DevTools
+  auto outboundMessageFunc = [enqueue_frontend_message_callback](const std::string& message) {
+    enqueue_frontend_message_callback.invoke(
+      enqueue_frontend_message_callback.data, 
+      message.c_str(), 
+      message.size()
+    );
+  };
+  
+  // Convert cdp_state if provided
+  facebook::hermes::cdp::State state;
+  if (cdp_state) {
+    state = std::move(*toCDPState(cdp_state));
+  }
+  
+  // Create the CDP agent
+  auto agent = facebook::hermes::cdp::CDPAgent::create(
+    execution_context_id,
+    *debugAPI,
+    std::move(enqueueRuntimeTask),
+    std::move(outboundMessageFunc),
+    std::move(state)
+  );
+  
+  *result = fromCDPAgent(agent.release());
+  
+  sprintf_s(logBuffer, "[CDP] Agent created: %p\n", *result);
+  OutputDebugStringA(logBuffer);
+  
   return hermes_status_ok;
 }
 
 hermes_status HERMES_CDECL impl_get_cdp_state(hermes_cdp_agent cdp_agent, hermes_cdp_state *result) {
-  OutputDebugStringA("[CDP] impl_get_cdp_state called\n");
-  if (result) {
-    *result = reinterpret_cast<hermes_cdp_state>(0x11111111);
+  OutputDebugStringA("[CDP] Getting state...\n");
+  
+  if (!result) {
+    return hermes_status_error;
   }
+  
+  if (!cdp_agent) {
+    *result = nullptr;
+    return hermes_status_ok;
+  }
+  
+  auto* agent = toCDPAgent(cdp_agent);
+  auto state = agent->getState();
+  *result = fromCDPState(new facebook::hermes::cdp::State(std::move(state)));
+  
+  OutputDebugStringA("[CDP] State retrieved\n");
   return hermes_status_ok;
 }
 
 hermes_status HERMES_CDECL impl_capture_stack_trace(hermes_runtime runtime, hermes_stack_trace *result) {
-  OutputDebugStringA("[CDP] impl_capture_stack_trace called\n");
-  (void)runtime;
-  if (result) *result = nullptr;
-  // TODO: Implement stack trace capture when needed
+  OutputDebugStringA("[CDP] Capturing stack trace...\n");
+  
+  if (result) {
+    *result = nullptr; // TODO: Implement when needed
+  }
+  
   return hermes_status_ok;
 }
 
+// Release CDP Debugger
 hermes_status HERMES_CDECL impl_release_cdp_debugger(hermes_cdp_debugger cdp_debugger) {
-  OutputDebugStringA("[CDP] impl_release_cdp_debugger called\n");
+  OutputDebugStringA("[CDP] Releasing debugger...\n");
+  if (cdp_debugger) {
+    delete toCDPDebugAPI(cdp_debugger);
+  }
   return hermes_status_ok;
 }
 
+//Release CDP Agent
 hermes_status HERMES_CDECL impl_release_cdp_agent(hermes_cdp_agent cdp_agent) {
-  OutputDebugStringA("[CDP] impl_release_cdp_agent called\n");
+  OutputDebugStringA("[CDP] Releasing agent...\n");
+  if (cdp_agent) {
+    delete toCDPAgent(cdp_agent);
+  }
   return hermes_status_ok;
 }
 
+//Release CDP State
 hermes_status HERMES_CDECL impl_release_cdp_state(hermes_cdp_state cdp_state) {
-  OutputDebugStringA("[CDP] impl_release_cdp_state called\n");
+  OutputDebugStringA("[CDP] Releasing state...\n");
+  if (cdp_state) {
+    delete toCDPState(cdp_state);
+  }
   return hermes_status_ok;
 }
 
+// Release Stack Trace
 hermes_status HERMES_CDECL impl_release_stack_trace(hermes_stack_trace stack_trace) {
-  OutputDebugStringA("[CDP] impl_release_stack_trace called\n");
-  (void)stack_trace;
-  // TODO: Implement stack trace release when needed
+  OutputDebugStringA("[CDP] Releasing stack trace...\n");
   return hermes_status_ok;
 }
 
 hermes_status HERMES_CDECL impl_cdp_agent_handle_command(hermes_cdp_agent cdp_agent, const char *json_utf8, size_t json_size) {
   char logBuffer[512];
-  sprintf_s(logBuffer, "[CDP] impl_cdp_agent_handle_command called with agent=%p, json_size=%zu\n", cdp_agent, json_size);
-  OutputDebugStringA(logBuffer);
   
-  if (json_utf8 && json_size > 0) {
-    // Logging first 100 chars of JSON for debugging
-    size_t logSize = json_size > 100 ? 100 : json_size;
-    char jsonBuffer[150];
-    strncpy_s(jsonBuffer, json_utf8, logSize);
-    jsonBuffer[logSize] = '\0';
-    sprintf_s(logBuffer, "[CDP] Command JSON: %.100s%s\n", jsonBuffer, json_size > 100 ? "..." : "");
+  // Log command for debugging
+  if (json_utf8 && json_size > 0 && json_size < 200) {
+    sprintf_s(logBuffer, "[CDP] Command: %.*s\n", (int)json_size, json_utf8);
+    OutputDebugStringA(logBuffer);
+  } else if (json_size > 0) {
+    sprintf_s(logBuffer, "[CDP] Command: %.*s... (%zu bytes)\n", 100, json_utf8, json_size);
     OutputDebugStringA(logBuffer);
   }
+  
+  if (!cdp_agent || !json_utf8 || json_size == 0) {
+    OutputDebugStringA("[CDP] ERROR: Invalid input\n");
+    return hermes_status_error;
+  }
+  
+  auto* agent = toCDPAgent(cdp_agent);
+  std::string json(json_utf8, json_size);
+  agent->handleCommand(std::move(json));
+  
   return hermes_status_ok;
 }
 
 hermes_status HERMES_CDECL impl_cdp_agent_enable_runtime_domain(hermes_cdp_agent cdp_agent) {
-  OutputDebugStringA("[CDP] impl_cdp_agent_enable_runtime_domain called\n");
+  OutputDebugStringA("[CDP] Enabling Runtime domain...\n");
   
+  if (!cdp_agent) {
+    return hermes_status_error;
+  }
+  
+  auto* agent = toCDPAgent(cdp_agent);
+  agent->enableRuntimeDomain();
+  
+  OutputDebugStringA("[CDP] Runtime domain enabled\n");
   return hermes_status_ok;
 }
 
 hermes_status HERMES_CDECL impl_cdp_agent_enable_debugger_domain(hermes_cdp_agent cdp_agent) {
-  OutputDebugStringA("[CDP] impl_cdp_agent_enable_debugger_domain called\n");
+  OutputDebugStringA("[CDP] Enabling Debugger domain...\n");
   
+  if (!cdp_agent) {
+    return hermes_status_error;
+  }
+  
+  auto* agent = toCDPAgent(cdp_agent);
+  agent->enableDebuggerDomain();
+  
+  OutputDebugStringA("[CDP] Debugger domain enabled - scripts should now be visible!\n");
   return hermes_status_ok;
 }
 
